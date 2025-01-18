@@ -3,16 +3,12 @@ package decoder
 import (
 	"bytes"
 	"container/list"
+	"github.com/segmentio/encoding/json"
 	"net"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
-	"unsafe"
-
-	"github.com/VictoriaMetrics/fastcache"
-	"github.com/segmentio/encoding/json"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -24,12 +20,10 @@ import (
 	"github.com/sipcapture/heplify/ip4defrag"
 	"github.com/sipcapture/heplify/ip6defrag"
 	"github.com/sipcapture/heplify/ownlayers"
-	"github.com/sipcapture/heplify/protos"
 )
 
 var (
 	PacketQueue = make(chan *Packet, 20000)
-	scriptCache = fastcache.New(32 * 1024 * 1024)
 )
 
 type CachePayload struct {
@@ -214,15 +208,6 @@ func NewDecoder(datalink layers.LinkType) *Decoder {
 	d.lastStatTime = time.Now()
 	if config.Cfg.Dedup {
 		d.dedupCache = freecache.NewCache(20 * 1024 * 1024) // 20 MB
-	}
-
-	if config.Cfg.Reassembly {
-		streamFactory := &tcpStreamFactory{}
-		streamPool := tcpassembly.NewStreamPool(streamFactory)
-		d.asm = tcpassembly.NewAssembler(streamPool)
-		d.asm.MaxBufferedPagesPerConnection = 1
-		d.asm.MaxBufferedPagesTotal = 1
-		go d.flushTCPAssembler(1 * time.Second)
 	}
 
 	go d.flushFragments(1 * time.Minute)
@@ -907,65 +892,14 @@ func (d *Decoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *l
 				}
 			}
 
-			if config.Cfg.Mode == "SIPLOG" {
-				if udp.DstPort == 514 {
-					pkt.ProtoType, pkt.CID = correlateLOG(udp.Payload)
-					if pkt.ProtoType > 0 && pkt.CID != nil {
-						PacketQueue <- pkt
-					}
-					return
-				}
-			}
-			if config.Cfg.Mode != "SIP" {
-				if (udp.Payload[0]&0xc0)>>6 == 2 {
-					if (udp.Payload[1] == 200 || udp.Payload[1] == 201 || udp.Payload[1] == 207) && udp.SrcPort%2 != 0 && udp.DstPort%2 != 0 {
-						pkt.Payload, pkt.CID = correlateRTCP(pkt.SrcIP, pkt.SrcPort, pkt.DstIP, pkt.DstPort, udp.Payload)
-						if pkt.Payload != nil {
-							pkt.ProtoType = 5
-							atomic.AddUint64(&d.rtcpCount, 1)
-							PacketQueue <- pkt
-							return
-						}
-						atomic.AddUint64(&d.rtcpFailCount, 1)
-						return
-					} else if udp.SrcPort%2 == 0 && udp.DstPort%2 == 0 {
-						if config.Cfg.Mode == "SIPRTP" {
-							logp.Debug("rtp", "\n%v", protos.NewRTP(udp.Payload))
-						}
-						pkt.Payload = nil
-						return
-					}
-				}
-				extractCID(pkt.SrcIP, pkt.SrcPort, pkt.DstIP, pkt.DstPort, pkt.Payload)
-			}
-
 		case layers.LayerTypeTCP:
 			pkt.SrcPort = uint16(tcp.SrcPort)
 			pkt.DstPort = uint16(tcp.DstPort)
 			atomic.AddUint64(&d.tcpCount, 1)
 			logp.Debug("payload", "TCP", pkt)
 
-			if config.Cfg.Reassembly {
-				d.asm.AssembleWithTimestamp(flow, tcp, ci.Timestamp)
-				return
-			}
-
-			if config.Cfg.SipAssembly {
-				var checkResult bool
-				checkResult, payloadList = d.checkTransport(pkt.SrcIP, pkt.SrcPort, pkt.DstIP, pkt.DstPort, tcp)
-				if !checkResult || payloadList.Len() <= 0 {
-					return
-				}
-
-				payloadList.PushBack(pkt.Payload)
-
-				for elem := payloadList.Front(); elem != nil; elem = elem.Next() {
-					extractCID(pkt.SrcIP, pkt.SrcPort, pkt.DstIP, pkt.DstPort, elem.Value.([]byte))
-				}
-			} else {
-				pkt.Payload = tcp.Payload
-				extractCID(pkt.SrcIP, pkt.SrcPort, pkt.DstIP, pkt.DstPort, pkt.Payload)
-			}
+			pkt.Payload = tcp.Payload
+			extractCID(pkt.SrcIP, pkt.SrcPort, pkt.DstIP, pkt.DstPort, pkt.Payload)
 
 		case layers.LayerTypeSCTP:
 			pkt.SrcPort = uint16(sctp.SrcPort)
@@ -981,14 +915,6 @@ func (d *Decoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *l
 
 			extractCID(pkt.SrcIP, pkt.SrcPort, pkt.DstIP, pkt.DstPort, pkt.Payload)
 
-		case layers.LayerTypeDNS:
-			if config.Cfg.Mode == "SIPDNS" {
-				pkt.ProtoType = 53
-				pkt.Payload = protos.ParseDNS(&d.dns)
-				atomic.AddUint64(&d.dnsCount, 1)
-				PacketQueue <- pkt
-				return
-			}
 		}
 	}
 
@@ -1044,66 +970,6 @@ func (d *Decoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *l
 			atomic.AddUint64(&d.unknownCount, 1)
 		}
 	}
-}
-
-func (d *Decoder) ProcessHEPPacket(data []byte) {
-
-	if config.Cfg.DiscardMethod != "" {
-		h, err := DecodeHEP(data)
-		if err == nil {
-			c := internal.ParseCSeq([]byte(h.Payload))
-			if c != nil {
-				for _, v := range d.filter {
-					if string(c) == v {
-						return
-					}
-				}
-			}
-		}
-	}
-
-	pkt := &Packet{
-		Version: 100,
-		Payload: data,
-	}
-	atomic.AddUint64(&d.hepCount, 1)
-
-	PacketQueue <- pkt
-}
-
-func (d *Decoder) SendPingHEPPacket() {
-
-	var data = []byte{0x48, 0x45, 0x50, 0x33, 0x3, 0xa}
-	pkt := &Packet{
-		Version: 0,
-		Payload: data,
-	}
-
-	atomic.AddUint64(&d.hepCount, 1)
-
-	PacketQueue <- pkt
-}
-
-func (d *Decoder) SendExitHEPPacket() {
-
-	var data = []byte{0x48, 0x45, 0x50, 0x33, 0x3, 0xa}
-	pkt := &Packet{
-		Version: 255,
-		Payload: data,
-	}
-
-	PacketQueue <- pkt
-}
-
-func stb(s string) []byte {
-	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	var res []byte
-
-	bh := (*reflect.SliceHeader)((unsafe.Pointer(&res)))
-	bh.Data = sh.Data
-	bh.Len = sh.Len
-	bh.Cap = sh.Len
-	return res
 }
 
 // Packet

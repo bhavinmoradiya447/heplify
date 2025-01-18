@@ -1,3 +1,5 @@
 heplify
 heplify.log*
 vendor/
+heplify.exe
+.idea/

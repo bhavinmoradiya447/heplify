@@ -11,47 +11,23 @@ var Cfg Config
 var WgExitGroup sync.WaitGroup
 
 type Config struct {
-	Iface              *InterfacesConfig
-	Logging            *logp.Logging
-	Mode               string
-	Dedup              bool
-	Filter             string
-	Discard            string
-	DiscardMethod      string
-	DiscardIP          string
-	DiscardSrcIP       string
-	DiscardDstIP       string
-	Zip                bool
-	HepCollector       string
-	CollectOnlySip     bool
-	ReplaceToken       bool
-	HepServer          string
-	HepNodePW          string
-	HepNodeID          uint
-	HepNodeName        string
-	Network            string
-	Protobuf           bool
-	Reassembly         bool
-	SipAssembly        bool
-	SendRetries        uint
-	KeepAlive          uint
-	Version            bool
-	ScriptFile         string
-	ScriptHEPFilter    []int
-	SkipVerify         bool
-	HEPBufferDebug     bool
-	HEPBufferEnable    bool
-	HEPBufferSize      string
-	HEPBufferFile      string
-	MaxBufferSizeBytes int64
-	PrometheusIPPort   string
+	Iface            *InterfacesConfig
+	Logging          *logp.Logging
+	Dedup            bool
+	Filter           string
+	Discard          string
+	DiscardMethod    string
+	DiscardIP        string
+	DiscardSrcIP     string
+	DiscardDstIP     string
+	Version          bool
+	PrometheusIPPort string
 }
 
 type InterfacesConfig struct {
 	Device       string `config:"device"`
 	Type         string `config:"type"`
 	ReadFile     string `config:"read_file"`
-	WriteFile    string `config:"write_file"`
 	RotationTime int    `config:"rotation_time"`
 	PortRange    string `config:"port_range"`
 	WithVlan     bool   `config:"with_vlan"`
