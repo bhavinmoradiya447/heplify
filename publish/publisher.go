@@ -41,20 +41,20 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 			 	CID:       unsafeBytesToStr(h.CID),
 			 	Vlan:      uint32(h.Vlan),
 		*/
-		logp.Info("Packet: %v", pkt.GetPayload())
-		logp.Info("Version: %v, Protocol: %v, srcIP:%v, SrcPort:%v, "+
-			"DstIP:%v, DstPort:%v, Tsec:%v, Tmsec:%v, ProtoType:%v, "+
-			"CID:%v, Vlan:%v", pkt.GetVersion(), pkt.GetProtocol(),
-			pkt.GetSrcIP(),
-			pkt.GetSrcPort(),
-			pkt.GetDstIP(),
-			pkt.GetDstPort(),
-			pkt.GetTsec(),
-			pkt.GetTmsec(),
-			pkt.GetProtoType(), pkt.GetCID(), uint32(pkt.Vlan))
+		if pkt.GetDstPort() != 9060 { // 9060 is the port for heplify-server, so ignore metrics for this port
+			//logp.Info("Packet: %v", pkt.GetPayload())
+			logp.Info("Version: %v, Protocol: %v, srcIP:%v, SrcPort:%v, "+
+				"DstIP:%v, DstPort:%v, Tsec:%v, Tmsec:%v, ProtoType:%v, "+
+				"CID:%v, Vlan:%v", pkt.GetVersion(), pkt.GetProtocol(),
+				pkt.GetSrcIP(),
+				pkt.GetSrcPort(),
+				pkt.GetDstIP(),
+				pkt.GetDstPort(),
+				pkt.GetTsec(),
+				pkt.GetTmsec(),
+				pkt.GetProtoType(), pkt.GetCID(), uint32(pkt.Vlan))
 
-		var SIP = sipparser.ParseMsg(pkt.GetPayload(), nil, nil)
-		if SIP.Error != nil {
+			var SIP = sipparser.ParseMsg(pkt.GetPayload(), nil, nil)
 			logp.Info("SIP: %v, %v, %v, %v, %v, %v, %v", SIP.CseqMethod, SIP.FirstMethod, SIP.FirstResp, SIP.CallID, SIP.FromHost, SIP.ToHost, SIP.CHeader)
 		}
 		// publish metrics from here
