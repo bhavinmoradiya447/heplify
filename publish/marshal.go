@@ -6,10 +6,6 @@ import (
 	"net"
 	strings "strings"
 	"unsafe"
-
-	proto "github.com/gogo/protobuf/proto"
-	"github.com/sipcapture/heplify/config"
-	"github.com/sipcapture/heplify/decoder"
 )
 
 // HEP chuncks
@@ -57,31 +53,6 @@ type HepMsg struct {
 	Mos       uint16
 	TCPFlag   uint8
 	IPTos     uint8
-}
-
-// EncodeHEP creates the HEP Packet which
-// will be send to wire
-func EncodeHEP(h *decoder.Packet) (hepMsg []byte, err error) {
-
-	hep := &HEP{
-		Version:   uint32(h.Version),
-		Protocol:  uint32(h.Protocol),
-		SrcIP:     h.SrcIP.String(),
-		DstIP:     h.DstIP.String(),
-		SrcPort:   uint32(h.SrcPort),
-		DstPort:   uint32(h.DstPort),
-		Tsec:      h.Tsec,
-		Tmsec:     h.Tmsec,
-		ProtoType: uint32(h.ProtoType),
-		NodeID:    uint32(config.Cfg.HepNodeID),
-		NodePW:    config.Cfg.HepNodePW,
-		Payload:   unsafeBytesToStr(h.Payload),
-		CID:       unsafeBytesToStr(h.CID),
-		Vlan:      uint32(h.Vlan),
-	}
-	hepMsg, err = proto.Marshal(hep)
-
-	return hepMsg, err
 }
 
 func (h *HepMsg) Marshal() (dAtA []byte, err error) {

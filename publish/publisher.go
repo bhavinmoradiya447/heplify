@@ -19,6 +19,11 @@ func NewPublisher() *Publisher {
 func (pub *Publisher) Start(pq chan *decoder.Packet) {
 	for pkt := range pq {
 		logp.Info("Payload: %v", pkt.GetPayload())
+		h, err := DecodeHEP(pkt.Payload)
+		if err == nil {
+			logp.Info("Payload: %v", string(h.Payload))
+		}
+
 		// TODO:: packet with all details
 		// pkt.SrcIP, pkt.DstIP, pkt.SrcPort, pkt.DstPort, pkt.Payload
 		/*
