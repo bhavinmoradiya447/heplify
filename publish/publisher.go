@@ -43,7 +43,7 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 		*/
 		logp.Info("Packet: %v", pkt.GetPayload())
 		var SIP = sipparser.ParseMsg(pkt.GetPayload(), nil, nil)
-		logp.Info("SIP: %v, %v, %v, %v, %v, %v, %v", SIP.CseqMethod, SIP.FirstMethod, SIP.FirstResp, SIP.CallID, SIP.FromHost, SIP.ToHost)
+		logp.Info("SIP: %v, %v, %v, %v, %v, %v, %v", SIP.CseqMethod, SIP.FirstMethod, SIP.FirstResp, SIP.CallID, SIP.FromHost, SIP.ToHost, SIP.CHeader)
 		// publish metrics from here
 	}
 }
