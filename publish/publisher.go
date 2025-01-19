@@ -41,6 +41,7 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 			 	Vlan:      uint32(h.Vlan),
 		*/
 		logp.Info("Packet: %v", pkt)
+		logp.Info("Packet: %v", pkt.GetPayload())
 		// publish metrics from here
 	}
 }
