@@ -18,10 +18,12 @@ func NewPublisher() *Publisher {
 
 func (pub *Publisher) Start(pq chan *decoder.Packet) {
 	for pkt := range pq {
-		logp.Info("Payload: %v", pkt.GetPayload())
+		//logp.Info("Payload: %v", pkt.GetPayload())
 		h, err := DecodeHEP(pkt.Payload)
 		if err == nil {
 			logp.Info("Payload: %v", string(h.Payload))
+		} else {
+			logp.Err("Error decoding HEP: %v", err)
 		}
 
 		// TODO:: packet with all details
