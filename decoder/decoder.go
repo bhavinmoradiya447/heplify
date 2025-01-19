@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"container/list"
 	"github.com/segmentio/encoding/json"
-	"github.com/sipcapture/heplify/publish"
 	"net"
 	"strconv"
 	"strings"
@@ -17,7 +16,6 @@ import (
 	"github.com/negbie/freecache"
 	"github.com/negbie/logp"
 	"github.com/sipcapture/heplify/config"
-	"github.com/sipcapture/heplify/decoder/internal"
 	"github.com/sipcapture/heplify/ip4defrag"
 	"github.com/sipcapture/heplify/ip6defrag"
 	"github.com/sipcapture/heplify/ownlayers"
@@ -226,149 +224,148 @@ func (d *Decoder) defragIP6(i6 layers.IPv6, i6frag layers.IPv6Fragment, t time.T
 
 func (d *Decoder) Process(data []byte, ci *gopacket.CaptureInfo) {
 
-	h, err := publish.DecodeHEP(data)
-
-	if err == nil {
-		logp.Info("Payload: %v", string(h.Payload))
-	} else {
-		logp.Err("Error decoding HEP: %v", err)
+	pkt := &Packet{
+		Payload: data,
 	}
-
-	if config.Cfg.Dedup {
-		if len(data) > 34 {
-			_, err := d.dedupCache.Get(data[34:])
-			if err == nil {
-				atomic.AddUint64(&d.dupCount, 1)
-				return
-			}
-			err = d.dedupCache.Set(data[34:], nil, 4) // 400 ms expire time
-			if err != nil {
-				logp.Warn("%v", err)
-			}
-		}
-	}
-
-	if config.Cfg.DiscardMethod != "" {
-		c := internal.ParseCSeq(data)
-		if c != nil {
-			for _, v := range d.filter {
-				if string(c) == v {
+	PacketQueue <- pkt
+	/*
+		if config.Cfg.Dedup {
+			if len(data) > 34 {
+				_, err := d.dedupCache.Get(data[34:])
+				if err == nil {
+					atomic.AddUint64(&d.dupCount, 1)
 					return
 				}
-			}
-		}
-	}
-
-	d.parser.DecodeLayers(data, &d.decodedLayers)
-	//logp.Debug("layer", "\n%v", d.decodedLayers)
-	foundGRELayer := false
-
-	i, j := 0, 0
-	for i := 0; i < len(d.decodedLayers); i++ {
-		if d.decodedLayers[i] == layers.LayerTypeVXLAN {
-			j = i
-		}
-	}
-
-	for i = j; i < len(d.decodedLayers); i++ {
-		switch d.decodedLayers[i] {
-		case layers.LayerTypeGRE:
-			if config.Cfg.Iface.WithErspan {
-				erspanVer := d.gre.Payload[0] & 0xF0 >> 4
-				if erspanVer == 1 && len(d.gre.Payload) > 8 {
-					d.parser.DecodeLayers(d.gre.Payload[8:], &d.decodedLayers)
-					if !foundGRELayer {
-						i = 0
-					}
-					foundGRELayer = true
-				} else if erspanVer == 2 && len(d.gre.Payload) > 12 {
-					off := 12
-					if d.gre.Payload[11]&1 == 1 && len(d.gre.Payload) > 20 {
-						off = 20
-					}
-					d.parser.DecodeLayers(d.gre.Payload[off:], &d.decodedLayers)
-					if !foundGRELayer {
-						i = 0
-					}
-					foundGRELayer = true
-				}
-			} else {
-				d.parser.DecodeLayers(d.gre.Payload, &d.decodedLayers)
-				if !foundGRELayer {
-					i = 0
-				}
-				foundGRELayer = true
-			}
-
-		case layers.LayerTypeIPv4:
-			atomic.AddUint64(&d.ip4Count, 1)
-			if d.ip4.Flags&layers.IPv4DontFragment != 0 || (d.ip4.Flags&layers.IPv4MoreFragments == 0 && d.ip4.FragOffset == 0) {
-				d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, d.ip4.NetworkFlow(), ci, 0x02, uint8(d.ip4.Protocol), d.ip4.SrcIP, d.ip4.DstIP)
-				break
-			}
-
-			ip4Len := d.ip4.Length
-			ip4New, err := d.defragIP4(d.ip4, ci.Timestamp)
-			if err != nil {
-				logp.Warn("%v, srcIP: %s, dstIP: %s\n\n", err, d.ip4.SrcIP, d.ip4.DstIP)
-				return
-			} else if ip4New == nil {
-				atomic.AddUint64(&d.fragCount, 1)
-				return
-			}
-
-			if ip4New.Length == ip4Len {
-				d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, d.ip4.NetworkFlow(), ci, 0x02, uint8(d.ip4.Protocol), d.ip4.SrcIP, d.ip4.DstIP)
-			} else {
-				logp.Debug("defrag", "%d byte fragment layer: %s with payload:\n%s\n%d byte re-assembled payload:\n%s\n\n",
-					ip4Len, d.decodedLayers, d.ip4.Payload, ip4New.Length, ip4New.Payload,
-				)
-
-				if ip4New.Protocol == layers.IPProtocolUDP {
-					d.parserUDP.DecodeLayers(ip4New.Payload, &d.decodedLayers)
-				} else if ip4New.Protocol == layers.IPProtocolTCP {
-					d.parserTCP.DecodeLayers(ip4New.Payload, &d.decodedLayers)
-				} else {
-					logp.Warn("unsupported IPv4 fragment layer")
-					return
-				}
-				d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, ip4New.NetworkFlow(), ci, 0x02, uint8(ip4New.Protocol), ip4New.SrcIP, ip4New.DstIP)
-			}
-
-		case layers.LayerTypeIPv6:
-			atomic.AddUint64(&d.ip6Count, 1)
-			if d.ip6.NextHeader != layers.IPProtocolIPv6Fragment {
-				d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, d.ip6.NetworkFlow(), ci, 0x0a, uint8(d.ip6.NextHeader), d.ip6.SrcIP, d.ip6.DstIP)
-				break
-			}
-
-			packet := gopacket.NewPacket(data, d.layerType, gopacket.DecodeOptions{Lazy: true, NoCopy: true})
-			if ip6frag := packet.Layer(layers.LayerTypeIPv6Fragment).(*layers.IPv6Fragment); ip6frag != nil {
-				ip6New, err := d.defragIP6(d.ip6, *ip6frag, ci.Timestamp)
+				err = d.dedupCache.Set(data[34:], nil, 4) // 400 ms expire time
 				if err != nil {
-					logp.Warn("%v, srcIP: %s, dstIP: %s\n\n", err, d.ip6.SrcIP, d.ip6.DstIP)
+					logp.Warn("%v", err)
+				}
+			}
+		}
+
+		if config.Cfg.DiscardMethod != "" {
+			c := internal.ParseCSeq(data)
+			if c != nil {
+				for _, v := range d.filter {
+					if string(c) == v {
+						return
+					}
+				}
+			}
+		}
+
+		d.parser.DecodeLayers(data, &d.decodedLayers)
+		//logp.Debug("layer", "\n%v", d.decodedLayers)
+		foundGRELayer := false
+
+		i, j := 0, 0
+		for i := 0; i < len(d.decodedLayers); i++ {
+			if d.decodedLayers[i] == layers.LayerTypeVXLAN {
+				j = i
+			}
+		}
+
+		for i = j; i < len(d.decodedLayers); i++ {
+			switch d.decodedLayers[i] {
+			case layers.LayerTypeGRE:
+				if config.Cfg.Iface.WithErspan {
+					erspanVer := d.gre.Payload[0] & 0xF0 >> 4
+					if erspanVer == 1 && len(d.gre.Payload) > 8 {
+						d.parser.DecodeLayers(d.gre.Payload[8:], &d.decodedLayers)
+						if !foundGRELayer {
+							i = 0
+						}
+						foundGRELayer = true
+					} else if erspanVer == 2 && len(d.gre.Payload) > 12 {
+						off := 12
+						if d.gre.Payload[11]&1 == 1 && len(d.gre.Payload) > 20 {
+							off = 20
+						}
+						d.parser.DecodeLayers(d.gre.Payload[off:], &d.decodedLayers)
+						if !foundGRELayer {
+							i = 0
+						}
+						foundGRELayer = true
+					}
+				} else {
+					d.parser.DecodeLayers(d.gre.Payload, &d.decodedLayers)
+					if !foundGRELayer {
+						i = 0
+					}
+					foundGRELayer = true
+				}
+
+			case layers.LayerTypeIPv4:
+				atomic.AddUint64(&d.ip4Count, 1)
+				if d.ip4.Flags&layers.IPv4DontFragment != 0 || (d.ip4.Flags&layers.IPv4MoreFragments == 0 && d.ip4.FragOffset == 0) {
+					d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, d.ip4.NetworkFlow(), ci, 0x02, uint8(d.ip4.Protocol), d.ip4.SrcIP, d.ip4.DstIP)
+					break
+				}
+
+				ip4Len := d.ip4.Length
+				ip4New, err := d.defragIP4(d.ip4, ci.Timestamp)
+				if err != nil {
+					logp.Warn("%v, srcIP: %s, dstIP: %s\n\n", err, d.ip4.SrcIP, d.ip4.DstIP)
 					return
-				} else if ip6New == nil {
+				} else if ip4New == nil {
 					atomic.AddUint64(&d.fragCount, 1)
 					return
 				}
 
-				logp.Debug("defrag", "%d byte fragment layer: %s with payload:\n%s\n%d byte re-assembled payload:\n%s\n\n",
-					d.ip6.Length, d.decodedLayers, d.ip6.Payload, ip6New.Length, ip6New.Payload,
-				)
-
-				if ip6New.NextHeader == layers.IPProtocolUDP {
-					d.parserUDP.DecodeLayers(ip6New.Payload, &d.decodedLayers)
-				} else if ip6New.NextHeader == layers.IPProtocolTCP {
-					d.parserTCP.DecodeLayers(ip6New.Payload, &d.decodedLayers)
+				if ip4New.Length == ip4Len {
+					d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, d.ip4.NetworkFlow(), ci, 0x02, uint8(d.ip4.Protocol), d.ip4.SrcIP, d.ip4.DstIP)
 				} else {
-					logp.Warn("unsupported IPv6 fragment layer")
-					return
+					logp.Debug("defrag", "%d byte fragment layer: %s with payload:\n%s\n%d byte re-assembled payload:\n%s\n\n",
+						ip4Len, d.decodedLayers, d.ip4.Payload, ip4New.Length, ip4New.Payload,
+					)
+
+					if ip4New.Protocol == layers.IPProtocolUDP {
+						d.parserUDP.DecodeLayers(ip4New.Payload, &d.decodedLayers)
+					} else if ip4New.Protocol == layers.IPProtocolTCP {
+						d.parserTCP.DecodeLayers(ip4New.Payload, &d.decodedLayers)
+					} else {
+						logp.Warn("unsupported IPv4 fragment layer")
+						return
+					}
+					d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, ip4New.NetworkFlow(), ci, 0x02, uint8(ip4New.Protocol), ip4New.SrcIP, ip4New.DstIP)
 				}
-				d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, ip6New.NetworkFlow(), ci, 0x0a, uint8(ip6New.NextHeader), ip6New.SrcIP, ip6New.DstIP)
+
+			case layers.LayerTypeIPv6:
+				atomic.AddUint64(&d.ip6Count, 1)
+				if d.ip6.NextHeader != layers.IPProtocolIPv6Fragment {
+					d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, d.ip6.NetworkFlow(), ci, 0x0a, uint8(d.ip6.NextHeader), d.ip6.SrcIP, d.ip6.DstIP)
+					break
+				}
+
+				packet := gopacket.NewPacket(data, d.layerType, gopacket.DecodeOptions{Lazy: true, NoCopy: true})
+				if ip6frag := packet.Layer(layers.LayerTypeIPv6Fragment).(*layers.IPv6Fragment); ip6frag != nil {
+					ip6New, err := d.defragIP6(d.ip6, *ip6frag, ci.Timestamp)
+					if err != nil {
+						logp.Warn("%v, srcIP: %s, dstIP: %s\n\n", err, d.ip6.SrcIP, d.ip6.DstIP)
+						return
+					} else if ip6New == nil {
+						atomic.AddUint64(&d.fragCount, 1)
+						return
+					}
+
+					logp.Debug("defrag", "%d byte fragment layer: %s with payload:\n%s\n%d byte re-assembled payload:\n%s\n\n",
+						d.ip6.Length, d.decodedLayers, d.ip6.Payload, ip6New.Length, ip6New.Payload,
+					)
+
+					if ip6New.NextHeader == layers.IPProtocolUDP {
+						d.parserUDP.DecodeLayers(ip6New.Payload, &d.decodedLayers)
+					} else if ip6New.NextHeader == layers.IPProtocolTCP {
+						d.parserTCP.DecodeLayers(ip6New.Payload, &d.decodedLayers)
+					} else {
+						logp.Warn("unsupported IPv6 fragment layer")
+						return
+					}
+					d.processTransport(&d.decodedLayers, &d.udp, &d.tcp, &d.sctp, ip6New.NetworkFlow(), ci, 0x0a, uint8(ip6New.NextHeader), ip6New.SrcIP, ip6New.DstIP)
+				}
 			}
 		}
-	}
+
+	*/
 }
 
 var SIP_REQUEST_METHOD = []string{
