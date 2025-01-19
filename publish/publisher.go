@@ -6,6 +6,7 @@ import (
 
 	"github.com/negbie/logp"
 	"github.com/sipcapture/heplify/decoder"
+	"github.com/sipcapture/heplify/sipparser"
 )
 
 type Publisher struct {
@@ -40,8 +41,9 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 			 	CID:       unsafeBytesToStr(h.CID),
 			 	Vlan:      uint32(h.Vlan),
 		*/
-		logp.Info("Packet: %v", pkt)
 		logp.Info("Packet: %v", pkt.GetPayload())
+		var SIP = sipparser.ParseMsg(pkt.GetPayload(), nil, nil)
+		logp.Info("SIP: %v, %v, %v, %v, %v, %v, %v", SIP.CseqMethod, SIP.FirstMethod, SIP.FirstResp, SIP.CallID, SIP.FromHost, SIP.ToHost)
 		// publish metrics from here
 	}
 }

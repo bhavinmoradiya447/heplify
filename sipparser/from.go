@@ -9,7 +9,7 @@ package sipparser
 import (
 	"fmt"
 
-	"github.com/sipcapture/heplify-server/sipparser/internal"
+	"github.com/sipcapture/heplify/sipparser/internal"
 )
 
 type parseFromStateFn func(f *From) parseFromStateFn
@@ -25,7 +25,8 @@ type parseFromStateFn func(f *From) parseFromStateFn
 // -- Tag is the tag value
 // -- URI is a parsed uri
 // -- Params are for any generic params that are part of
-//    the header
+//
+//	the header
 type From struct {
 	Error error
 	Val   string

@@ -9,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/sipcapture/heplify-server/config"
 )
 
 const (
@@ -255,14 +253,8 @@ func (s *SipMsg) addHdr(str string) {
 			if len(s.XHeader) > 0 {
 				for i := range s.XHeader {
 					if s.hdr == s.XHeader[i] {
-						filter, ok := config.CompileStore.RegexMap[s.XHeader[i]]
-						if ok {
-							if filter.MatchString(s.hdrv) {
-								s.XCallID = filter.FindStringSubmatch(s.hdrv)[1]
-							}
-						} else {
-							s.XCallID = s.hdrv
-						}
+						s.XCallID = s.hdrv
+
 					}
 				}
 			}
@@ -273,15 +265,10 @@ func (s *SipMsg) addHdr(str string) {
 
 				for i := range s.CHeader {
 					//if we wanna compare ignoring case
-					if config.Setting.IgnoreCaseCH {
-						if strings.EqualFold(s.hdr, s.CHeader[i]) {
-							s.CustomHeader[s.CHeader[i]] = s.hdrv
-						}
-					} else {
-						if s.hdr == s.CHeader[i] {
-							s.CustomHeader[s.hdr] = s.hdrv
-						}
+					if s.hdr == s.CHeader[i] {
+						s.CustomHeader[s.hdr] = s.hdrv
 					}
+
 				}
 			}
 		}
