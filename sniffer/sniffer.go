@@ -73,7 +73,7 @@ func (sniffer *SnifferSetup) setFromConfig() error {
 		sniffer.config.Type = "pcap"
 	}
 
-	sniffer.bpf = "(tcp or sctp) and greater 42 and portrange " + sniffer.config.PortRange + " or (udp and greater 128 and portrange " + sniffer.config.PortRange + " or ip[6:2] & 0x1fff != 0 or ip6[6]=44)"
+	sniffer.bpf = "(tcp or sctp) and greater 42 and portrange " + sniffer.config.PortRange + " or (udp and greater 128 and portrange " + sniffer.config.PortRange + " or ip[6:2] & 0x1fff != 0 or ip6[6]=44) and not (dst port 9060)"
 
 	if sniffer.config.WithErspan {
 		sniffer.bpf = fmt.Sprintf("%s or proto 47", sniffer.bpf)

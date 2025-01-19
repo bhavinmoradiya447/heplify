@@ -918,8 +918,11 @@ func (d *Decoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *l
 		}
 	}
 
+	logp.Info("pkt: %v", string(pkt.Payload))
 	var cPos int
 	if payloadList != nil && payloadList.Len() > 0 {
+		logp.Info("INSIDE: %v", string(pkt.Payload))
+
 		for elem := payloadList.Front(); elem != nil; elem = elem.Next() {
 			pkt2 := &Packet{
 				Version:   pkt.Version,
@@ -953,6 +956,8 @@ func (d *Decoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *l
 			}
 		}
 	} else {
+		logp.Info("ELSE: %v", string(pkt.Payload))
+
 		if cPos = bytes.Index(pkt.Payload, []byte("CSeq")); cPos > -1 {
 			pkt.ProtoType = 1
 		} else if cPos = bytes.Index(pkt.Payload, []byte("Cseq")); cPos > -1 {
@@ -963,6 +968,7 @@ func (d *Decoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *l
 				pkt.Payload = pkt.Payload[s+4:]
 			}
 		}
+		logp.Info("ELSE: %v, Payload:%v", string(pkt.Payload), pkt.ProtoType)
 
 		if pkt.ProtoType > 0 && pkt.Payload != nil {
 			PacketQueue <- pkt

@@ -1,30 +1,24 @@
 package publish
 
 import (
-	"sync/atomic"
-	"time"
-
 	"github.com/negbie/logp"
 	"github.com/sipcapture/heplify/decoder"
 	"github.com/sipcapture/heplify/sipparser"
 )
 
 type Publisher struct {
-	pubCount uint64
 }
 
 func NewPublisher() *Publisher {
-	p := &Publisher{
-		pubCount: 0,
-	}
+	p := &Publisher{}
 
 	go p.Start(decoder.PacketQueue)
-	go p.printStats()
 	return p
 }
 
 func (pub *Publisher) Start(pq chan *decoder.Packet) {
 	for pkt := range pq {
+		logp.Info("Payload: %v", pkt.GetPayload())
 		// TODO:: packet with all details
 		// pkt.SrcIP, pkt.DstIP, pkt.SrcPort, pkt.DstPort, pkt.Payload
 		/*
@@ -62,15 +56,5 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 				SIP.ToHost)
 		}
 		// publish metrics from here
-	}
-}
-
-func (pub *Publisher) printStats() {
-	for {
-		<-time.After(1 * time.Minute)
-		go func() {
-			logp.Info("Packets since last minute sent: %d", atomic.LoadUint64(&pub.pubCount))
-			atomic.StoreUint64(&pub.pubCount, 0)
-		}()
 	}
 }
