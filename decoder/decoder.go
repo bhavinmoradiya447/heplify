@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"container/list"
 	"github.com/segmentio/encoding/json"
+	"github.com/sipcapture/heplify/publish"
 	"net"
 	"strconv"
 	"strings"
@@ -224,6 +225,15 @@ func (d *Decoder) defragIP6(i6 layers.IPv6, i6frag layers.IPv6Fragment, t time.T
 }
 
 func (d *Decoder) Process(data []byte, ci *gopacket.CaptureInfo) {
+
+	h, err := publish.DecodeHEP(data)
+
+	if err == nil {
+		logp.Info("Payload: %v", string(h.Payload))
+	} else {
+		logp.Err("Error decoding HEP: %v", err)
+	}
+
 	if config.Cfg.Dedup {
 		if len(data) > 34 {
 			_, err := d.dedupCache.Get(data[34:])
