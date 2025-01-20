@@ -11,14 +11,11 @@ import (
 type Publisher struct {
 }
 
-var myIp, _ = GetLocalIPs()
+var myIp = GetLocalIPs()
 
-func GetLocalIPs() ([]net.IP, error) {
+func GetLocalIPs() net.IP {
 	var ips []net.IP
-	addresses, err := net.InterfaceAddrs()
-	if err != nil {
-		return nil, err
-	}
+	addresses, _ := net.InterfaceAddrs()
 
 	for _, addr := range addresses {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
@@ -27,7 +24,7 @@ func GetLocalIPs() ([]net.IP, error) {
 			}
 		}
 	}
-	return ips, nil
+	return ips[0]
 }
 
 func NewPublisher() *Publisher {
