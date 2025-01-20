@@ -61,7 +61,7 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 					SIP.CallID,
 					SIP.FromHost,
 					SIP.ToHost)
-				incrementCounter(pkt.GetSrcIP(), pkt.GetDstIP(), SIP.CseqMethod, response, SIP.ToHost)
+				incrementCounter(h.SrcIP.String(), h.DstIP.String(), SIP.CseqMethod, response, SIP.ToHost)
 			} else {
 				logp.Err("Error decoding HEP: %v", err)
 			}
