@@ -422,9 +422,7 @@ func (d *Decoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *l
 		}
 	}
 
-	logp.Info("pkt: %v", string(pkt.Payload))
 	var cPos int
-
 	if cPos = bytes.Index(pkt.Payload, []byte("CSeq")); cPos > -1 {
 		pkt.ProtoType = 1
 	} else if cPos = bytes.Index(pkt.Payload, []byte("Cseq")); cPos > -1 {
