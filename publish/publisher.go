@@ -5,9 +5,29 @@ import (
 	"github.com/sipcapture/heplify/decoder"
 	"github.com/sipcapture/heplify/promstats"
 	"github.com/sipcapture/heplify/sipparser"
+	"net"
 )
 
 type Publisher struct {
+}
+
+var myIp, _ = GetLocalIPs()
+
+func GetLocalIPs() ([]net.IP, error) {
+	var ips []net.IP
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, addr := range addresses {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				ips = append(ips, ipnet.IP)
+			}
+		}
+	}
+	return ips, nil
 }
 
 func NewPublisher() *Publisher {
@@ -18,6 +38,7 @@ func NewPublisher() *Publisher {
 }
 
 func (pub *Publisher) Start(pq chan *decoder.Packet) {
+	logp.Info("Starting Publisher on %v", myIp)
 	for pkt := range pq {
 
 		// TODO:: packet with all details
