@@ -6,14 +6,12 @@ import (
 	"github.com/sipcapture/heplify/promstats"
 	"github.com/sipcapture/heplify/sipparser"
 	"net"
-	"strings"
 )
 
 type Publisher struct {
 }
 
 var myIp = GetLocalIPs().String()
-var myHostName = "ip-" + strings.Replace(myIp, ".", "-", -1)
 
 func GetLocalIPs() net.IP {
 	var ips []net.IP
@@ -95,13 +93,7 @@ func incrementCounter(srcIp string, destIp string, method string, response strin
 	if method != response {
 		target = srcIp
 	}
-	if strings.Contains(host, myIp) ||
-		strings.Contains(host, myHostName) ||
-		strings.Contains(host, myHostName) ||
-		strings.Contains(host, "rt.intg") ||
-		strings.Contains(host, "rt.prod") ||
-		strings.Contains(host, "rt.load") ||
-		strings.Contains(host, "rt.qa") {
+	if target == myIp {
 		host = "KAM"
 	}
 

@@ -14,7 +14,7 @@ var KamailioSipResponse = prometheus.NewCounterVec(
 		Name: "kamailio_sip_response",
 		Help: "SIP method and response counter",
 	},
-	[]string{"method", "response", "target", "domain"},
+	[]string{"method", "response", "target", "host"},
 )
 
 func StartMetrics(wg *sync.WaitGroup) {
