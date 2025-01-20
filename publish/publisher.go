@@ -39,7 +39,7 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 				SIP.CallID,
 				SIP.FromHost,
 				SIP.ToHost)
-		} else {
+		} else if pkt.GetDstPort() == 9060 {
 			h, err := DecodeHEP(pkt.Payload)
 			if err == nil {
 				var payload = h.Payload
