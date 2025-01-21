@@ -92,7 +92,7 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 						// GOT IP, Resolve
 						var oldHost = host
 						for k, v := range domainToIpMap {
-							if v[host] == member {
+							if _, ok := v[host]; ok {
 								host = k
 								break
 							}
