@@ -48,7 +48,7 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 
 			var SIP = sipparser.ParseMsg(pkt.GetPayload(), nil, nil)
 			var response = getResponseStr(SIP)
-			logp.Info("srcIP:%v, SrcPort:%v, "+
+			logp.Debug("srcIP:%v, SrcPort:%v, "+
 				"DstIP:%v, DstPort:%v, Method: %v, Resp: %v, CallID: %v, FromHost: %v, ToHost: %v",
 				pkt.GetSrcIP(),
 				pkt.GetSrcPort(),
@@ -66,9 +66,9 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 				var payload = h.Payload
 				var SIP = sipparser.ParseMsg(string(payload), nil, nil)
 				response := getResponseStr(SIP)
-				logp.Info("PARSED HEP3 srcIP:%v, SrcPort:%v, "+
+				logp.Debug("PARSED HEP3 srcIP: %v, SrcPort:%v, "+
 					"DstIP:%v, DstPort:%v, Method: %v, Resp: %v, CallID: %v, FromHost: %v, ToHost: %v",
-					h.SrcIP,
+					h.SrcIP.String(),
 					h.SrcPort,
 					h.DstIP,
 					h.DstPort,
@@ -80,6 +80,7 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 
 				var host = SIP.ToHost
 				if host != myIp {
+					logp.Info("domainToIpMap: %v", domainToIpMap)
 					if net.ParseIP(host) == nil {
 						if set, ok := domainToIpMap[host]; ok {
 							set[getTarget(h.SrcIP.String(), h.DstIP.String(), SIP.CseqMethod, response)] = member
