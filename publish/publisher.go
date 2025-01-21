@@ -6,6 +6,7 @@ import (
 	"github.com/sipcapture/heplify/promstats"
 	"github.com/sipcapture/heplify/sipparser"
 	"net"
+	"strings"
 )
 
 type Publisher struct {
@@ -17,6 +18,7 @@ type void struct{}
 
 var member void
 var domainToIpMap = make(map[string]map[string]void)
+var fsBnrIp = make(map[string]void)
 
 func GetLocalIPs() net.IP {
 	var ips []net.IP
@@ -59,6 +61,12 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 				SIP.CallID,
 				SIP.FromHost,
 				SIP.ToHost)
+			if pkt.GetDstPort() == 5080 {
+				fsBnrIp[pkt.GetDstIP()] = member
+			}
+			if pkt.GetSrcPort() == 5080 {
+				fsBnrIp[pkt.GetSrcIP()] = member
+			}
 			incrementCounter(pkt.GetSrcIP(), pkt.GetDstIP(), SIP.CseqMethod, response, "FS/BNR")
 		} else if pkt.GetDstPort() == 9060 {
 			h, err := DecodeHEP(pkt.Payload)
@@ -80,32 +88,38 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 
 				var host = SIP.ToHost
 				if host != myIp {
-					logp.Info("domainToIpMap: %v", domainToIpMap)
-					target := getTarget(h.SrcIP.String(), h.DstIP.String(), SIP.CseqMethod, response)
-					if target != myIp {
+					logp.Debug("domainToIpMap", "%v", domainToIpMap)
+					targetIp := getTarget(h.SrcIP.String(), h.DstIP.String(), SIP.CseqMethod, response)
+					if targetIp != myIp {
 						if net.ParseIP(host) == nil {
-							if set, ok := domainToIpMap[host]; ok {
-								set[target] = member
+							_, ok := fsBnrIp[targetIp]
+							if (strings.Contains(host, "rt.intg") ||
+								strings.Contains(host, "rt.qa") ||
+								strings.Contains(host, "rt.load") ||
+								strings.Contains(host, "rt.prod") ||
+								strings.Contains(host, "rtg.intg") ||
+								strings.Contains(host, "rtg.qa") ||
+								strings.Contains(host, "rtg.load") ||
+								strings.Contains(host, "rtg.prod") ||
+								strings.Contains(host, "rtw.intg") ||
+								strings.Contains(host, "rtw.qa") ||
+								strings.Contains(host, "rtw.load") ||
+								strings.Contains(host, "rtw.prod")) && !ok {
+								host = getHostName(host, targetIp)
 							} else {
-								domainToIpMap[host] = make(map[string]void)
-								domainToIpMap[host][target] = member
+								if set, ok := domainToIpMap[host]; ok {
+									set[targetIp] = member
+								} else {
+									domainToIpMap[host] = make(map[string]void)
+									domainToIpMap[host][targetIp] = member
+								}
 							}
 						} else {
 							// GOT IP, Resolve
-							var oldHost = host
-							for k, v := range domainToIpMap {
-								if _, ok := v[host]; ok {
-									host = k
-									break
-								}
-							}
-							if oldHost == host {
-								host = "Unknown"
-							}
+							host = getHostName(host, targetIp)
 						}
 					}
 				}
-
 				incrementCounter(h.SrcIP.String(), h.DstIP.String(), SIP.CseqMethod, response, host)
 			} else {
 				logp.Err("Error decoding HEP: %v", err)
@@ -114,6 +128,20 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 		}
 		// publish metrics from here
 	}
+}
+
+func getHostName(host string, targetIp string) string {
+	var oldHost = host
+	for k, v := range domainToIpMap {
+		if _, ok := v[targetIp]; ok {
+			host = k
+			break
+		}
+	}
+	if oldHost == host {
+		host = "Unknown"
+	}
+	return host
 }
 
 func getResponseStr(SIP *sipparser.SipMsg) string {
