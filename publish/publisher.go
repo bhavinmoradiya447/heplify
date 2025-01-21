@@ -81,24 +81,27 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 				var host = SIP.ToHost
 				if host != myIp {
 					logp.Info("domainToIpMap: %v", domainToIpMap)
-					if net.ParseIP(host) == nil {
-						if set, ok := domainToIpMap[host]; ok {
-							set[getTarget(h.SrcIP.String(), h.DstIP.String(), SIP.CseqMethod, response)] = member
-						} else {
-							domainToIpMap[host] = make(map[string]void)
-							domainToIpMap[host][getTarget(h.SrcIP.String(), h.DstIP.String(), SIP.CseqMethod, response)] = member
-						}
-					} else {
-						// GOT IP, Resolve
-						var oldHost = host
-						for k, v := range domainToIpMap {
-							if _, ok := v[host]; ok {
-								host = k
-								break
+					target := getTarget(h.SrcIP.String(), h.DstIP.String(), SIP.CseqMethod, response)
+					if target != myIp {
+						if net.ParseIP(host) == nil {
+							if set, ok := domainToIpMap[host]; ok {
+								set[target] = member
+							} else {
+								domainToIpMap[host] = make(map[string]void)
+								domainToIpMap[host][target] = member
 							}
-						}
-						if oldHost == host {
-							host = "Unknown"
+						} else {
+							// GOT IP, Resolve
+							var oldHost = host
+							for k, v := range domainToIpMap {
+								if _, ok := v[host]; ok {
+									host = k
+									break
+								}
+							}
+							if oldHost == host {
+								host = "Unknown"
+							}
 						}
 					}
 				}
