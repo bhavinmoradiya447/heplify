@@ -100,11 +100,7 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 								strings.Contains(host, "rtg.intg") ||
 								strings.Contains(host, "rtg.qa") ||
 								strings.Contains(host, "rtg.load") ||
-								strings.Contains(host, "rtg.prod") ||
-								strings.Contains(host, "rtw.intg") ||
-								strings.Contains(host, "rtw.qa") ||
-								strings.Contains(host, "rtw.load") ||
-								strings.Contains(host, "rtw.prod")) && !ok {
+								strings.Contains(host, "rtg.prod")) && !ok {
 								host = getHostName(host, targetIp)
 							} else {
 								if set, ok := domainToIpMap[host]; ok {
