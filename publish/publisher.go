@@ -80,7 +80,7 @@ func (pub *Publisher) Start(pq chan *decoder.Packet) {
 
 				var host = SIP.ToHost
 				if host != myIp {
-					//logp.Debug("domainToIpMap: %v", domainToIpMap)
+					logp.Info("domainToIpMap: %v", domainToIpMap)
 					if net.ParseIP(host) == nil {
 						if set, ok := domainToIpMap[host]; ok {
 							set[getTarget(h.SrcIP.String(), h.DstIP.String(), SIP.CseqMethod, response)] = member
