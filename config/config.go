@@ -13,14 +13,7 @@ var WgExitGroup sync.WaitGroup
 type Config struct {
 	Iface            *InterfacesConfig
 	Logging          *logp.Logging
-	Dedup            bool
-	Filter           string
-	Discard          string
 	DiscardMethod    string
-	DiscardIP        string
-	DiscardSrcIP     string
-	DiscardDstIP     string
-	Version          bool
 	PrometheusIPPort string
 }
 

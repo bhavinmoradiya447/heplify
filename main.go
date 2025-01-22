@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
 	"sync"
 
 	"github.com/negbie/logp"
@@ -13,17 +12,14 @@ import (
 	"github.com/sipcapture/heplify/sniffer"
 )
 
-const version = "heplify 1.66.10"
-
 func createFlags() {
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Use %s like: %s [option]\n", version, os.Args[0])
+		fmt.Fprintf(os.Stderr, "Args: %s [option]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 
 	var (
-		err         error
 		ifaceConfig config.InterfacesConfig
 		logging     logp.Logging
 		fileRotator logp.FileRotator
@@ -36,20 +32,13 @@ func createFlags() {
 
 	//long
 	flag.StringVar(&config.Cfg.PrometheusIPPort, "prometheus", ":8090", "prometheus metrics - ip:port. By default all IPs")
-	flag.BoolVar(&config.Cfg.Version, "version", false, "Show heplify version")
-	flag.BoolVar(&config.Cfg.Dedup, "dd", false, "Deduplicate packets")
-	flag.StringVar(&config.Cfg.Discard, "di", "", "Discard uninteresting packets by any string")
 	flag.StringVar(&config.Cfg.DiscardMethod, "dim", "", "Discard uninteresting SIP packets by Method [OPTIONS,NOTIFY]")
-	flag.StringVar(&config.Cfg.DiscardIP, "diip", "", "Discard uninteresting SIP packets by Source or Destination IP(s)")
-	flag.StringVar(&config.Cfg.DiscardSrcIP, "disip", "", "Discard uninteresting SIP packets by Source IP(s)")
-	flag.StringVar(&config.Cfg.DiscardDstIP, "didip", "", "Discard uninteresting SIP packets by Destination IP(s)")
 	flag.BoolVar(&ifaceConfig.WithVlan, "vlan", false, "vlan")
 	flag.BoolVar(&ifaceConfig.WithErspan, "erspan", false, "erspan")
 	flag.IntVar(&fNum, "fnum", 7, "The total num of log files to keep")
 	flag.Uint64Var(&fSize, "fsize", 10*1024*1024, "The rotate size per log file based on byte")
 
 	//short
-	flag.StringVar(&config.Cfg.Filter, "fi", "", "Filter interesting packets by any string")
 	flag.StringVar(&ifaceConfig.CustomBPF, "bpf", "", "Custom BPF to capture packets")
 	//
 	flag.UintVar(&ifaceConfig.FanoutID, "fg", 0, "Fanout group ID for af_packet")
@@ -82,16 +71,6 @@ func createFlags() {
 	logging.Files = &fileRotator
 	config.Cfg.Logging = &logging
 
-	config.Cfg.Discard, err = strconv.Unquote(`"` + config.Cfg.Discard + `"`)
-	checkErr(err)
-	config.Cfg.Filter, err = strconv.Unquote(`"` + config.Cfg.Filter + `"`)
-	checkErr(err)
-}
-
-func checkErr(err error) {
-	if err != nil {
-		fmt.Printf("\nError: %v\n\n", err)
-	}
 }
 
 func checkCritErr(err error) {
@@ -104,12 +83,7 @@ func checkCritErr(err error) {
 func main() {
 	createFlags()
 
-	if config.Cfg.Version {
-		fmt.Println(version)
-		os.Exit(0)
-	}
-
-	err := logp.Init("heplify", config.Cfg.Logging)
+	err := logp.Init("sipcapture", config.Cfg.Logging)
 	checkCritErr(err)
 
 	worker := 1

@@ -1,7 +1,6 @@
 package sniffer
 
 import (
-	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -30,8 +29,6 @@ type SnifferSetup struct {
 	mode           string
 	bpf            string
 	file           string
-	filter         []string
-	discard        []string
 	worker         Worker
 	DataSource     gopacket.PacketDataSource
 	filterIP       []string
@@ -85,22 +82,9 @@ func (sniffer *SnifferSetup) setFromConfig() error {
 		sniffer.bpf = sniffer.config.CustomBPF
 	}
 
-	if config.Cfg.Filter != "" {
-		sniffer.filter = strings.Split(config.Cfg.Filter, ",")
-	}
-	if config.Cfg.Discard != "" {
-		sniffer.discard = strings.Split(config.Cfg.Discard, ",")
-	}
-
 	logp.Info("%#v", config.Cfg)
 	logp.Info("%#v", config.Cfg.Iface)
 	logp.Info("bpf: %s", sniffer.bpf)
-	if len(sniffer.discard) > 0 {
-		logp.Info("discard: %#v", sniffer.discard)
-	}
-	if len(sniffer.filter) > 0 {
-		logp.Info("filter: %#v", sniffer.filter)
-	}
 	logp.Info("ostype: %s, osarch: %s", runtime.GOOS, runtime.GOARCH)
 
 	switch sniffer.config.Type {
@@ -213,7 +197,6 @@ func (sniffer *SnifferSetup) Run() error {
 		retError    error
 	)
 
-LOOP:
 	for sniffer.isAlive {
 
 		if sniffer.config.OneAtATime {
@@ -267,21 +250,6 @@ LOOP:
 
 		if len(data) == 0 {
 			continue
-		}
-
-		if len(sniffer.filter) > 0 {
-			for i := range sniffer.filter {
-				if !bytes.Contains(data, []byte(sniffer.filter[i])) {
-					continue LOOP
-				}
-			}
-		}
-		if len(sniffer.discard) > 0 {
-			for i := range sniffer.discard {
-				if bytes.Contains(data, []byte(sniffer.discard[i])) {
-					continue LOOP
-				}
-			}
 		}
 
 		if sniffer.file != "" {
