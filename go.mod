@@ -8,8 +8,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/negbie/freecache v1.1.0
 	github.com/negbie/logp v0.0.0-20190313141056-04cebff7f846
-	github.com/prometheus/client_golang v1.20.5
-	github.com/stretchr/testify v1.10.0
-	golang.org/x/net v0.33.0
-	github.com/prometheus/client_golang v1.20.5
+	github.com/prometheus/client_golang v1.17.0
+	github.com/stretchr/testify v1.9.0
+	golang.org/x/net v0.23.0
 )
