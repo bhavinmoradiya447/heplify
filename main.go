@@ -31,7 +31,7 @@ func createFlags() {
 	)
 
 	//long
-	flag.StringVar(&config.Cfg.PrometheusIPPort, "prometheus", ":8090", "prometheus metrics - ip:port. By default all IPs")
+	flag.StringVar(&config.Cfg.PrometheusIPPort, "prometheus", ":5557", "prometheus metrics - ip:port. By default all IPs")
 	flag.StringVar(&config.Cfg.DiscardMethod, "dim", "", "Discard uninteresting SIP packets by Method [OPTIONS,NOTIFY]")
 	flag.BoolVar(&ifaceConfig.WithVlan, "vlan", false, "vlan")
 	flag.BoolVar(&ifaceConfig.WithErspan, "erspan", false, "erspan")
